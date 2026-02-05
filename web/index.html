@@ -65,6 +65,26 @@
               />
               <div class="hint">Upload overrides the path above.</div>
             </div>
+
+            <div class="field-group">
+              <label class="field-label" for="samBackend">SAM3 Backend</label>
+              <select id="samBackend" class="input">
+                <option value="local" selected>Local (SAM3)</option>
+                <option value="fal">fal.ai API</option>
+                <option value="roboflow">Roboflow API</option>
+              </select>
+              <div class="hint">API mode uses FAL_KEY or ROBOFLOW_API_KEY if no key is provided below.</div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label" for="samApiKey">SAM3 API Key</label>
+              <input
+                id="samApiKey"
+                type="password"
+                class="input"
+                placeholder="FAL/Roboflow key (optional)"
+              />
+            </div>
           </details>
         </section>
 

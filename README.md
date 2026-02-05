@@ -5,7 +5,7 @@
 # AutoFigure: Generating and Refining Publication-Ready Scientific Illustrations [ICLR 2026]
 
 <p align="center">
-  <a href="README.md">English</a> | <a href="README_zh.md">中文</a>
+  <a href="README.md">English</a> | <a href="README_ZH.md">中文</a>
 </p>
 
 [![ICLR 2026](https://img.shields.io/badge/ICLR-2026-blue?style=for-the-badge&logo=openreview)](https://openreview.net/forum?id=5N3z9JQJKq)
@@ -147,6 +147,7 @@ On the start page, paste your paper's method text on the left. On the right, con
 *   **Provider:** Select your LLM provider (OpenRouter or Bianxie).
 *   **Optimize:** Set SVG template refinement iterations (recommend `0` for standard use).
 *   **Reference Image:** Upload a target image to enable style transfer.
+*   **SAM3 Backend:** Choose local SAM3 or the fal.ai API (API key optional).
 
 ### 2. Canvas & Editor
 <img src="img/demo_canvas.png" width="100%" alt="Canvas Page" style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px;"/>
@@ -169,6 +170,38 @@ access and authenticate (e.g., `huggingface-cli login`) before download.
 - SAM3 repo: https://github.com/facebookresearch/sam3
 - SAM3 Hugging Face: https://huggingface.co/facebook/sam3
 
+### SAM3 API Mode (No Local Install)
+
+If you prefer not to install SAM3 locally, you can use an API backend:
+
+**Option A: fal.ai**
+
+```bash
+export FAL_KEY="your-fal-key"
+python autofigure2.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider bianxie \
+  --api_key YOUR_KEY \
+  --sam_backend fal
+```
+
+**Option B: Roboflow**
+
+```bash
+export ROBOFLOW_API_KEY="your-roboflow-key"
+python autofigure2.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider bianxie \
+  --api_key YOUR_KEY \
+  --sam_backend roboflow
+```
+
+Optional CLI flags (API):
+- `--sam_api_key` (overrides `FAL_KEY`/`ROBOFLOW_API_KEY`)
+- `--sam_max_masks` (default: 32, fal.ai only)
+
 ## ⚙️ Configuration
 
 ### Supported LLM Providers
@@ -183,6 +216,9 @@ Common CLI flags:
 - `--provider` (openrouter | bianxie)
 - `--image_model`, `--svg_model`
 - `--sam_prompt` (comma-separated prompts)
+- `--sam_backend` (local | fal | roboflow | api)
+- `--sam_api_key` (API key override; falls back to `FAL_KEY` or `ROBOFLOW_API_KEY`)
+- `--sam_max_masks` (fal.ai max masks, default 32)
 - `--merge_threshold` (0 disables merging)
 - `--optimize_iterations` (0 disables optimization)
 - `--reference_image_path` (optional)
