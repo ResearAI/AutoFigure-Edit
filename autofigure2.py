@@ -67,6 +67,7 @@ import argparse
 import base64
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -100,6 +101,11 @@ PROVIDER_CONFIGS = {
 
 ProviderType = Literal["openrouter", "bianxie"]
 PlaceholderMode = Literal["none", "box", "label"]
+
+# SAM3 API config
+SAM3_FAL_API_URL = "https://fal.run/fal-ai/sam-3/image"
+SAM3_ROBOFLOW_API_URL = "https://serverless.roboflow.com/sam3/concept_segment"
+SAM3_API_TIMEOUT = 300
 
 # Step 1 reference image settings (overridden by CLI)
 USE_REFERENCE_IMAGE = False
@@ -792,12 +798,248 @@ def merge_overlapping_boxes(boxes: list, overlap_threshold: float = 0.9) -> list
     return result
 
 
+def _get_fal_api_key(sam_api_key: Optional[str]) -> str:
+    key = sam_api_key or os.environ.get("FAL_KEY")
+    if not key:
+        raise ValueError("SAM3 fal.ai API key missing: set --sam_api_key or FAL_KEY environment variable")
+    return key
+
+
+def _get_roboflow_api_key(sam_api_key: Optional[str]) -> str:
+    key = sam_api_key or os.environ.get("ROBOFLOW_API_KEY") or os.environ.get("API_KEY")
+    if not key:
+        raise ValueError(
+            "SAM3 Roboflow API key missing: set --sam_api_key or ROBOFLOW_API_KEY/API_KEY environment variable"
+        )
+    return key
+
+
+def _image_to_data_uri(image: Image.Image) -> str:
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    image_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{image_b64}"
+
+
+def _image_to_base64(image: Image.Image) -> str:
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+
+def _cxcywh_norm_to_xyxy(box: list | tuple, width: int, height: int) -> Optional[tuple[int, int, int, int]]:
+    if not box or len(box) < 4:
+        return None
+    try:
+        cx, cy, bw, bh = [float(v) for v in box[:4]]
+    except (TypeError, ValueError):
+        return None
+
+    cx *= width
+    cy *= height
+    bw *= width
+    bh *= height
+
+    x1 = int(round(cx - bw / 2.0))
+    y1 = int(round(cy - bh / 2.0))
+    x2 = int(round(cx + bw / 2.0))
+    y2 = int(round(cy + bh / 2.0))
+
+    x1 = max(0, min(width, x1))
+    y1 = max(0, min(height, y1))
+    x2 = max(0, min(width, x2))
+    y2 = max(0, min(height, y2))
+
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return x1, y1, x2, y2
+
+
+def _polygon_to_bbox(points: list, width: int, height: int) -> Optional[tuple[int, int, int, int]]:
+    xs: list[float] = []
+    ys: list[float] = []
+
+    for pt in points:
+        if not isinstance(pt, (list, tuple)) or len(pt) < 2:
+            continue
+        try:
+            x = float(pt[0])
+            y = float(pt[1])
+        except (TypeError, ValueError):
+            continue
+        xs.append(x)
+        ys.append(y)
+
+    if not xs or not ys:
+        return None
+
+    x1 = int(round(min(xs)))
+    y1 = int(round(min(ys)))
+    x2 = int(round(max(xs)))
+    y2 = int(round(max(ys)))
+
+    x1 = max(0, min(width, x1))
+    y1 = max(0, min(height, y1))
+    x2 = max(0, min(width, x2))
+    y2 = max(0, min(height, y2))
+
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return x1, y1, x2, y2
+
+
+def _extract_sam3_api_detections(response_json: dict, image_size: tuple[int, int]) -> list[dict]:
+    width, height = image_size
+    detections: list[dict] = []
+
+    metadata = response_json.get("metadata") if isinstance(response_json, dict) else None
+    if isinstance(metadata, list) and metadata:
+        for item in metadata:
+            if not isinstance(item, dict):
+                continue
+            box = item.get("box")
+            xyxy = _cxcywh_norm_to_xyxy(box, width, height)
+            if not xyxy:
+                continue
+            score = item.get("score")
+            detections.append(
+                {"x1": xyxy[0], "y1": xyxy[1], "x2": xyxy[2], "y2": xyxy[3], "score": score}
+            )
+        return detections
+
+    boxes = response_json.get("boxes") if isinstance(response_json, dict) else None
+    scores = response_json.get("scores") if isinstance(response_json, dict) else None
+    if isinstance(boxes, list) and boxes:
+        scores_list = scores if isinstance(scores, list) else []
+        for idx, box in enumerate(boxes):
+            xyxy = _cxcywh_norm_to_xyxy(box, width, height)
+            if not xyxy:
+                continue
+            score = scores_list[idx] if idx < len(scores_list) else None
+            detections.append(
+                {"x1": xyxy[0], "y1": xyxy[1], "x2": xyxy[2], "y2": xyxy[3], "score": score}
+            )
+
+    return detections
+
+
+def _extract_roboflow_detections(response_json: dict, image_size: tuple[int, int]) -> list[dict]:
+    width, height = image_size
+    detections: list[dict] = []
+
+    prompt_results = response_json.get("prompt_results") if isinstance(response_json, dict) else None
+    if not isinstance(prompt_results, list):
+        return detections
+
+    for prompt_result in prompt_results:
+        if not isinstance(prompt_result, dict):
+            continue
+        predictions = prompt_result.get("predictions", [])
+        if not isinstance(predictions, list):
+            continue
+        for prediction in predictions:
+            if not isinstance(prediction, dict):
+                continue
+            confidence = prediction.get("confidence")
+            masks = prediction.get("masks", [])
+            if not isinstance(masks, list):
+                continue
+            for mask in masks:
+                points = []
+                if isinstance(mask, list) and mask:
+                    if isinstance(mask[0], (list, tuple)) and len(mask[0]) >= 2 and isinstance(
+                        mask[0][0], (int, float)
+                    ):
+                        points = mask
+                    elif isinstance(mask[0], (list, tuple)):
+                        for sub in mask:
+                            if isinstance(sub, (list, tuple)) and len(sub) >= 2 and isinstance(
+                                sub[0], (int, float)
+                            ):
+                                points.append(sub)
+                            elif isinstance(sub, (list, tuple)) and sub and isinstance(
+                                sub[0], (list, tuple)
+                            ):
+                                for pt in sub:
+                                    if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                                        points.append(pt)
+                if not points:
+                    continue
+                xyxy = _polygon_to_bbox(points, width, height)
+                if not xyxy:
+                    continue
+                detections.append(
+                    {
+                        "x1": xyxy[0],
+                        "y1": xyxy[1],
+                        "x2": xyxy[2],
+                        "y2": xyxy[3],
+                        "score": confidence,
+                    }
+                )
+
+    return detections
+
+
+def _call_sam3_api(
+    image_data_uri: str,
+    prompt: str,
+    api_key: str,
+    max_masks: int,
+) -> dict:
+    headers = {
+        "Authorization": f"Key {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "image_url": image_data_uri,
+        "prompt": prompt,
+        "apply_mask": False,
+        "return_multiple_masks": True,
+        "max_masks": max_masks,
+        "include_scores": True,
+        "include_boxes": True,
+    }
+    response = requests.post(SAM3_FAL_API_URL, headers=headers, json=payload, timeout=SAM3_API_TIMEOUT)
+    if response.status_code != 200:
+        raise Exception(f"SAM3 API 错误: {response.status_code} - {response.text[:500]}")
+    result = response.json()
+    if isinstance(result, dict) and "error" in result:
+        raise Exception(f"SAM3 API 错误: {result.get('error')}")
+    return result
+
+
+def _call_sam3_roboflow_api(
+    image_base64: str,
+    prompt: str,
+    api_key: str,
+    min_score: float,
+) -> dict:
+    payload = {
+        "image": {"type": "base64", "value": image_base64},
+        "prompts": [{"type": "text", "text": prompt}],
+        "format": "polygon",
+        "output_prob_thresh": min_score,
+    }
+    url = f"{SAM3_ROBOFLOW_API_URL}?api_key={api_key}"
+    response = requests.post(url, json=payload, timeout=SAM3_API_TIMEOUT)
+    if response.status_code != 200:
+        raise Exception(f"SAM3 Roboflow API 错误: {response.status_code} - {response.text[:500]}")
+    result = response.json()
+    if isinstance(result, dict) and "error" in result:
+        raise Exception(f"SAM3 Roboflow API 错误: {result.get('error')}")
+    return result
+
+
 def segment_with_sam3(
     image_path: str,
     output_dir: str,
     text_prompts: str = "icon",
     min_score: float = 0.5,
     merge_threshold: float = 0.9,
+    sam_backend: Literal["local", "fal", "roboflow", "api"] = "local",
+    sam_api_key: Optional[str] = None,
+    sam_max_masks: int = 32,
 ) -> tuple[str, str, list]:
     """
     使用 SAM3 分割图片，用灰色填充+黑色边框+序号标记，生成 boxlib.json
@@ -821,23 +1063,8 @@ def segment_with_sam3(
     print("步骤二：SAM3 分割 + 灰色填充+黑色边框+序号标记")
     print("=" * 60)
 
-    from sam3.model_builder import build_sam3_image_model
-    from sam3.model.sam3_image_processor import Sam3Processor
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    import sam3
-    sam3_dir = Path(sam3.__path__[0]) if hasattr(sam3, '__path__') else Path(sam3.__file__).parent
-    bpe_path = sam3_dir / "assets" / "bpe_simple_vocab_16e6.txt.gz"
-    if not bpe_path.exists():
-        bpe_path = None
-        print("警告: 未找到 bpe 文件，使用默认路径")
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"使用设备: {device}")
-    model = build_sam3_image_model(device=device, bpe_path=str(bpe_path) if bpe_path else None)
-    processor = Sam3Processor(model, device=device)
 
     image = Image.open(image_path)
     original_size = image.size
@@ -847,40 +1074,131 @@ def segment_with_sam3(
     prompt_list = [p.strip() for p in text_prompts.split(",") if p.strip()]
     print(f"使用的 prompts: {prompt_list}")
 
-    inference_state = processor.set_image(image)
-
     # 对每个 prompt 分别检测并收集结果
     all_detected_boxes = []
     total_detected = 0
 
-    for prompt in prompt_list:
-        print(f"\n  正在检测: '{prompt}'")
-        output = processor.set_text_prompt(state=inference_state, prompt=prompt)
+    backend = sam_backend
+    if backend == "api":
+        backend = "fal"
 
-        boxes = output["boxes"]
-        scores = output["scores"]
+    if backend == "local":
+        from sam3.model_builder import build_sam3_image_model
+        from sam3.model.sam3_image_processor import Sam3Processor
+        import sam3
 
-        if isinstance(boxes, torch.Tensor):
-            boxes = boxes.cpu().numpy()
-        if isinstance(scores, torch.Tensor):
-            scores = scores.cpu().numpy()
+        sam3_dir = Path(sam3.__path__[0]) if hasattr(sam3, '__path__') else Path(sam3.__file__).parent
+        bpe_path = sam3_dir / "assets" / "bpe_simple_vocab_16e6.txt.gz"
+        if not bpe_path.exists():
+            bpe_path = None
+            print("警告: 未找到 bpe 文件，使用默认路径")
 
-        prompt_count = 0
-        for i, (box, score) in enumerate(zip(boxes, scores)):
-            if score >= min_score:
-                x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
-                all_detected_boxes.append({
-                    "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                    "score": float(score),
-                    "prompt": prompt  # 记录来源 prompt
-                })
-                prompt_count += 1
-                print(f"    对象 {prompt_count}: ({x1}, {y1}, {x2}, {y2}), score={score:.3f}")
-            else:
-                print(f"    跳过: score={score:.3f} < {min_score}")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"使用设备: {device}")
+        model = build_sam3_image_model(device=device, bpe_path=str(bpe_path) if bpe_path else None)
+        processor = Sam3Processor(model, device=device)
+        inference_state = processor.set_image(image)
 
-        print(f"  '{prompt}' 检测到 {prompt_count} 个有效对象")
-        total_detected += prompt_count
+        for prompt in prompt_list:
+            print(f"\n  正在检测: '{prompt}'")
+            output = processor.set_text_prompt(state=inference_state, prompt=prompt)
+
+            boxes = output["boxes"]
+            scores = output["scores"]
+
+            if isinstance(boxes, torch.Tensor):
+                boxes = boxes.cpu().numpy()
+            if isinstance(scores, torch.Tensor):
+                scores = scores.cpu().numpy()
+
+            prompt_count = 0
+            for box, score in zip(boxes, scores):
+                if score >= min_score:
+                    x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+                    all_detected_boxes.append({
+                        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                        "score": float(score),
+                        "prompt": prompt  # 记录来源 prompt
+                    })
+                    prompt_count += 1
+                    print(f"    对象 {prompt_count}: ({x1}, {y1}, {x2}, {y2}), score={score:.3f}")
+                else:
+                    print(f"    跳过: score={score:.3f} < {min_score}")
+
+            print(f"  '{prompt}' 检测到 {prompt_count} 个有效对象")
+            total_detected += prompt_count
+
+        del model, processor
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    elif backend == "fal":
+        api_key = _get_fal_api_key(sam_api_key)
+        max_masks = max(1, min(32, int(sam_max_masks)))
+        image_data_uri = _image_to_data_uri(image)
+        print(f"SAM3 fal.ai API 模式: max_masks={max_masks}")
+
+        for prompt in prompt_list:
+            print(f"\n  正在检测: '{prompt}'")
+            response_json = _call_sam3_api(
+                image_data_uri=image_data_uri,
+                prompt=prompt,
+                api_key=api_key,
+                max_masks=max_masks,
+            )
+            detections = _extract_sam3_api_detections(response_json, original_size)
+            prompt_count = 0
+            for det in detections:
+                score = det.get("score")
+                score_val = float(score) if score is not None else 0.0
+                if score_val >= min_score:
+                    x1, y1, x2, y2 = det["x1"], det["y1"], det["x2"], det["y2"]
+                    all_detected_boxes.append({
+                        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                        "score": score_val,
+                        "prompt": prompt  # 记录来源 prompt
+                    })
+                    prompt_count += 1
+                    print(f"    对象 {prompt_count}: ({x1}, {y1}, {x2}, {y2}), score={score_val:.3f}")
+                else:
+                    print(f"    跳过: score={score_val:.3f} < {min_score}")
+
+            print(f"  '{prompt}' 检测到 {prompt_count} 个有效对象")
+            total_detected += prompt_count
+    elif backend == "roboflow":
+        api_key = _get_roboflow_api_key(sam_api_key)
+        image_base64 = _image_to_base64(image)
+        print("SAM3 Roboflow API 模式: format=polygon")
+
+        for prompt in prompt_list:
+            print(f"\n  正在检测: '{prompt}'")
+            response_json = _call_sam3_roboflow_api(
+                image_base64=image_base64,
+                prompt=prompt,
+                api_key=api_key,
+                min_score=min_score,
+            )
+            detections = _extract_roboflow_detections(response_json, original_size)
+            prompt_count = 0
+            for det in detections:
+                score = det.get("score")
+                score_val = float(score) if score is not None else 0.0
+                if score_val >= min_score:
+                    x1, y1, x2, y2 = det["x1"], det["y1"], det["x2"], det["y2"]
+                    all_detected_boxes.append({
+                        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                        "score": score_val,
+                        "prompt": prompt
+                    })
+                    prompt_count += 1
+                    print(f"    对象 {prompt_count}: ({x1}, {y1}, {x2}, {y2}), score={score_val:.3f}")
+                else:
+                    print(f"    跳过: score={score_val:.3f} < {min_score}")
+
+            print(f"  '{prompt}' 检测到 {prompt_count} 个有效对象")
+            total_detected += prompt_count
+    else:
+        raise ValueError(f"未知 SAM3 后端: {sam_backend}")
 
     print(f"\n总计检测: {total_detected} 个对象 (来自 {len(prompt_list)} 个 prompts)")
 
@@ -965,10 +1283,6 @@ def segment_with_sam3(
     with open(boxlib_path, 'w', encoding='utf-8') as f:
         json.dump(boxlib_data, f, indent=2, ensure_ascii=False)
     print(f"Box 信息已保存: {boxlib_path}")
-
-    del model, processor
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
 
     return str(samed_path), str(boxlib_path), valid_boxes
 
@@ -1900,6 +2214,9 @@ def method_to_svg(
     svg_gen_model: str = None,
     sam_prompts: str = "icon",
     min_score: float = 0.5,
+    sam_backend: Literal["local", "fal", "roboflow", "api"] = "local",
+    sam_api_key: Optional[str] = None,
+    sam_max_masks: int = 32,
     rmbg_model_path: Optional[str] = None,
     stop_after: int = 5,
     placeholder_mode: PlaceholderMode = "label",
@@ -1919,6 +2236,9 @@ def method_to_svg(
         svg_gen_model: SVG 生成模型
         sam_prompts: SAM3 文本提示，支持逗号分隔的多个prompt（如 "icon,diagram,arrow"）
         min_score: SAM3 最低置信度
+        sam_backend: SAM3 后端（local/fal/roboflow/api）
+        sam_api_key: SAM3 API Key（api 模式使用）
+        sam_max_masks: SAM3 API 最大 masks 数（api 模式使用）
         rmbg_model_path: RMBG 模型路径
         stop_after: 执行到指定步骤后停止
         placeholder_mode: 占位符模式
@@ -1955,6 +2275,10 @@ def method_to_svg(
     print(f"SVG模型: {svg_gen_model}")
     print(f"SAM提示词: {sam_prompts}")
     print(f"最低置信度: {min_score}")
+    sam_backend_value = "fal" if sam_backend == "api" else sam_backend
+    print(f"SAM后端: {sam_backend_value}")
+    if sam_backend_value == "fal":
+        print(f"SAM3 API max_masks: {sam_max_masks}")
     print(f"执行到步骤: {stop_after}")
     print(f"占位符模式: {placeholder_mode}")
     print(f"优化迭代次数: {optimize_iterations}")
@@ -1993,6 +2317,9 @@ def method_to_svg(
         text_prompts=sam_prompts,
         min_score=min_score,
         merge_threshold=merge_threshold,
+        sam_backend=sam_backend_value,
+        sam_api_key=sam_api_key,
+        sam_max_masks=sam_max_masks,
     )
 
     if len(valid_boxes) == 0:
@@ -2193,6 +2520,19 @@ if __name__ == "__main__":
     # SAM3 参数
     parser.add_argument("--sam_prompt", default="icon,robot,animal,person", help="SAM3 文本提示，支持逗号分隔多个prompt（如 'icon,diagram,arrow'，默认: icon）")
     parser.add_argument("--min_score", type=float, default=0.0, help="SAM3 最低置信度阈值（默认: 0.0）")
+    parser.add_argument(
+        "--sam_backend",
+        choices=["local", "fal", "roboflow", "api"],
+        default="local",
+        help="SAM3 后端：local(本地部署)/fal(fal.ai)/roboflow(Roboflow)/api(旧别名=fal)",
+    )
+    parser.add_argument("--sam_api_key", default=None, help="SAM3 API Key（默认使用 FAL_KEY）")
+    parser.add_argument(
+        "--sam_max_masks",
+        type=int,
+        default=32,
+        help="SAM3 API 最大 masks 数（仅 api 后端，默认: 32）",
+    )
 
     # RMBG 参数
     parser.add_argument("--rmbg_model_path", default=None, help="RMBG 模型本地路径（可选）")
@@ -2259,6 +2599,9 @@ if __name__ == "__main__":
         svg_gen_model=args.svg_model,
         sam_prompts=args.sam_prompt,
         min_score=args.min_score,
+        sam_backend=args.sam_backend,
+        sam_api_key=args.sam_api_key,
+        sam_max_masks=args.sam_max_masks,
         rmbg_model_path=args.rmbg_model_path,
         stop_after=args.stop_after,
         placeholder_mode=args.placeholder_mode,

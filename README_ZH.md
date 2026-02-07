@@ -144,6 +144,7 @@ AutoFigure-edit 提供了一个可视化的 Web 界面，旨在实现无缝的�
 *   **供应商 (Provider):** 选择 LLM 供应商（OpenRouter 或 Bianxie）。
 *   **优化 (Optimize):** 设置 SVG 模板的优化迭代次数（日常使用建议设为 `0`）。
 *   **参考图片 (Reference Image):** 上传目标图片以启用风格迁移功能。
+*   **SAM3 后端:** 选择本地 SAM3 或 fal.ai API（API Key 可选）。
 
 ### 2. 画布与编辑器
 <img src="img/demo_canvas.png" width="100%" alt="画布页面" style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px;"/>
@@ -163,6 +164,38 @@ SAM3 权重文件托管在 Hugging Face 上，下载前可能需要申请访问�
 - SAM3 仓库: https://github.com/facebookresearch/sam3
 - SAM3 Hugging Face: https://huggingface.co/facebook/sam3
 
+### SAM3 API 模式（无需本地安装）
+
+如果不想本地部署 SAM3，可使用 API 后端：
+
+**方案 A: fal.ai**
+
+```bash
+export FAL_KEY="your-fal-key"
+python autofigure2.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider bianxie \
+  --api_key YOUR_KEY \
+  --sam_backend fal
+```
+
+**方案 B: Roboflow**
+
+```bash
+export ROBOFLOW_API_KEY="your-roboflow-key"
+python autofigure2.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider bianxie \
+  --api_key YOUR_KEY \
+  --sam_backend roboflow
+```
+
+可选 CLI 参数（API）：
+- `--sam_api_key`（覆盖 `FAL_KEY`/`ROBOFLOW_API_KEY`）
+- `--sam_max_masks`（默认 32，仅 fal.ai 后端）
+
 ## ⚙️ 配置
 
 ### 支持的 LLM 供应商
@@ -177,6 +210,9 @@ SAM3 权重文件托管在 Hugging Face 上，下载前可能需要申请访问�
 - `--provider` (openrouter | bianxie)
 - `--image_model`, `--svg_model`
 - `--sam_prompt` (逗号分隔的提示词)
+- `--sam_backend` (local | fal | roboflow | api)
+- `--sam_api_key` (API Key，默认读取 `FAL_KEY` 或 `ROBOFLOW_API_KEY`)
+- `--sam_max_masks` (fal.ai 最大 masks，默认 32)
 - `--merge_threshold` (0 禁用合并)
 - `--optimize_iterations` (0 禁用优化)
 - `--reference_image_path` (可选)
