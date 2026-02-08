@@ -166,7 +166,7 @@ SAM3 权重文件托管在 Hugging Face 上，下载前可能需要申请访问�
 
 ### SAM3 API 模式（无需本地安装）
 
-如果不想本地部署 SAM3，可使用 API 后端：
+如果您不想在本地安装 SAM3，可以使用 API 后端（Web Demo 也支持）。**我们推荐使用 [Roboflow](https://roboflow.com/)，因为它可以免费使用。**
 
 **方案 A: fal.ai**
 
