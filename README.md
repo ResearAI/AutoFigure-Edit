@@ -172,7 +172,7 @@ access and authenticate (e.g., `huggingface-cli login`) before download.
 
 ### SAM3 API Mode (No Local Install)
 
-If you prefer not to install SAM3 locally, you can use an API backend:
+If you prefer not to install SAM3 locally, you can use an API backend (also supported in the Web demo). **We recommend using [Roboflow](https://roboflow.com/) as it is free to use.**
 
 **Option A: fal.ai**
 
