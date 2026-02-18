@@ -106,7 +106,7 @@ Optionally, the SVG is iteratively refined by an **LLM optimizer** to better ali
 
 ## ⚡ Quick Start
 
-### Option 1: Conda Environment (Recommended)
+### Option 1: Conda Environment 
 
 ```bash
 # 1) Create and activate conda environment
@@ -121,7 +121,7 @@ pip install -r requirements.txt
 pip install -e sam3
 ```
 
-### Option 2: Docker Deployment
+### Option 2: Docker Deployment (Recommended)
 
 ```bash
 # Build Docker image
@@ -131,25 +131,23 @@ docker build -f docker/Dockerfile -t autofigure:latest .
 docker run --name autofigure \
   --gpus all \
   --shm-size 32g \
-  -p 30001:30000 \
+  -p 8000:8000 \
   --ipc=host \
   -v /path/to/models:/root/models \
   -v /path/to/code:/app/ \
   -it autofigure:latest /bin/bash
 ```
-```
 
-### Option 3: CLI
+
+### Option 3: Web Interface
 
 ```bash
-# 1) Install dependencies
-pip install -r requirements.txt
-
-# 2) Install SAM3 separately 
-
-pip install -e sam3
+python server.py
 ```
 
+Then open `http://localhost:8000`.
+
+---
 
 **Run:**
 
@@ -193,15 +191,7 @@ python autofigure_main.py \
   --ppt_output_path outputs/demo/result.pptx
 ```
 
-### Option 4: Web Interface
 
-```bash
-python server.py
-```
-
-Then open `http://localhost:8000`.
-
----
 
 ## 🖥️ Web Interface Demo
 
@@ -318,8 +308,10 @@ AutoFigure-edit/
 │   │   ├── step2_sam.py       # SAM3 segmentation
 │   │   ├── step3_rmbg.py      # Background removal
 │   │   ├── step4_svg_template.py  # SVG template generation
-│   │   ├── step4_chart_code.py    # Chart-to-code generation
-│   │   └── step5_assemble.py  # Final SVG assembly
+│   │   ├── step4_chart_code.py    # 图表转代码
+│   │   ├── step5_replace_icons.py  # 最终 SVG 组装
+│   │   ├── step6_optimize.py    # 多轮反馈优化
+│   │   └── step7_evaluate.py  # 评估chart2code代码生成质量
 │   ├── providers/             # LLM provider implementations
 │   │   ├── openrouter.py
 │   │   ├── bianxie.py

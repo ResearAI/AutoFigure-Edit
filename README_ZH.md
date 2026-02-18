@@ -113,10 +113,8 @@ conda activate autofigure
 # 2) 安装依赖
 pip install -r requirements.txt
 
-# 3) 单独安装 SAM3 (本项目未包含)
-git clone https://github.com/facebookresearch/sam3.git
-cd sam3
-pip install -e .
+# 3) 单独安装 SAM3 
+pip install -e sam3
 ```
 
 ### 选项 2: Docker 部署
@@ -129,7 +127,7 @@ docker build -f docker/Dockerfile -t autofigure:latest .
 docker run --name autofigure \
   --gpus all \
   --shm-size 32g \
-  -p 30001:30000 \
+  -p 8000:8000 \
   --ipc=host \
   -v /path/to/models:/root/models \
   -v /path/to/code:/app/ \
@@ -137,17 +135,15 @@ docker run --name autofigure \
 ```
 ```
 
-### 选项 3: 命令行 (CLI)
+### 选项 3: Web 界面
 
 ```bash
-# 1) 安装依赖
-pip install -r requirements.txt
-
-# 2) 单独安装 SAM3 (本项目未包含)
-git clone https://github.com/facebookresearch/sam3.git
-cd sam3
-pip install -e .
+python server.py
 ```
+
+然后在浏览器打开 `http://localhost:8000`。
+
+---
 
 **运行:**
 
@@ -192,15 +188,7 @@ python autofigure_main.py \
 ```
 ```
 
-### 选项 4: Web 界面
 
-```bash
-python server.py
-```
-
-然后在浏览器打开 `http://localhost:8000`。
-
----
 
 ## 🖥️ Web 界面演示
 
@@ -267,7 +255,6 @@ python autofigure_main.py \
 
 ## ⚙️ 配置
 
-### 支持的 LLM 供应商
 
 ### 支持的 LLM 供应商
 
@@ -318,7 +305,9 @@ AutoFigure-edit/
 │   │   ├── step3_rmbg.py      # 背景去除
 │   │   ├── step4_svg_template.py  # SVG 模板生成
 │   │   ├── step4_chart_code.py    # 图表转代码
-│   │   └── step5_assemble.py  # 最终 SVG 组装
+│   │   ├── step5_replace_icons.py  # 最终 SVG 组装
+│   │   ├── step6_optimize.py    # 多轮反馈优化
+│   │   └── step7_evaluate.py  # 评估chart2code代码生成质量
 │   ├── providers/             # LLM 供应商实现
 │   │   ├── openrouter.py
 │   │   ├── bianxie.py
