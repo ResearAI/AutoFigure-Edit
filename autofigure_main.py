@@ -70,7 +70,7 @@ def main():
     parser.add_argument(
         "--reference_code_path",
         default=None,
-        help="参考代码路径（用于评分，默认: /data/code_yjh/AutoFigure-Edit/AutoFigure-Edit/inputs/test1.py）",
+        help="参考代码路径（用于评分，默认: /examples/inputs/test1.py）",
     )
     parser.add_argument(
         "--reference_image_path_for_eval",
@@ -216,7 +216,7 @@ def main():
             # 设置默认参考代码路径
             reference_code_path = args.reference_code_path
             if reference_code_path is None:
-                reference_code_path = "/data/code_yjh/AutoFigure-Edit/AutoFigure-Edit/inputs/test1.py"
+                reference_code_path = "/examples/inputs/test1.py"
             
             # 检查参考代码是否存在
             if not Path(reference_code_path).exists():

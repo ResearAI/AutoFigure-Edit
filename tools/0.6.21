@@ -1,5 +1,0 @@
-Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
-Requirement already satisfied: python-pptx in /usr/local/lib/python3.12/site-packages (0.6.21)
-Requirement already satisfied: lxml>=3.1.0 in /usr/local/lib/python3.12/site-packages (from python-pptx) (6.0.2)
-Requirement already satisfied: Pillow>=3.3.2 in /usr/local/lib/python3.12/site-packages (from python-pptx) (12.0.0)
-Requirement already satisfied: XlsxWriter>=0.5.7 in /usr/local/lib/python3.12/site-packages (from python-pptx) (3.2.9)

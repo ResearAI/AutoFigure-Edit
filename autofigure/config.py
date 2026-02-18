@@ -3,7 +3,7 @@
 from typing import Literal
 
 # Provider 类型定义
-ProviderType = Literal["openrouter", "bianxie", "local", "kimi"]
+ProviderType = Literal["openrouter", "bianxie", "local"]
 PlaceholderMode = Literal["none", "box", "label"]
 
 # Provider 配置
