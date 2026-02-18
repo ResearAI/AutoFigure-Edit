@@ -288,6 +288,7 @@ Common CLI flags:
 - `--reference_image_path` (optional, for style transfer)
 - `--convert_to_ppt` (convert SVG to PowerPoint)
 - `--ppt_output_path` (PPT output path)
+- `--reference_code_path` (reference code path)
 
 ---
 
@@ -335,10 +336,7 @@ AutoFigure-edit/
 ```
 </details>
 
----
-└── img/                   # README assets
-```
-</details>
+
 
 ---
 

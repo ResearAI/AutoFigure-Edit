@@ -282,12 +282,12 @@ python autofigure_main.py \
 - `--reference_image_path` (可选，用于风格迁移)
 - `--convert_to_ppt` (将 SVG 转换为 PowerPoint)
 - `--ppt_output_path` (PPT 输出路径)
+- `--reference_code_path` (参考代码路径)
 
 ---
 
 ## 📁 项目结构
 
-## 📁 项目结构
 
 <details>
 <summary>点击展开目录树</summary>
@@ -334,7 +334,7 @@ AutoFigure-edit/
 
 ---
 
----
+
 
 ## 🤝 社区与支持
 
