@@ -19,9 +19,9 @@ PROVIDER_CONFIGS = {
         "default_svg_model": "gemini-3-pro-preview",
     },
     "local": {
-        'base_url': 'http://101.52.216.169:8001/v1',
+        'base_url': 'xxxx',
         "default_image_model": "",
-        "default_svg_model": "kimi-k2.5",
+        "default_svg_model": "xxx",
     },
 }
 

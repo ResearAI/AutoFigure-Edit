@@ -149,7 +149,7 @@ def generate_chart_code(
             model=model,
             base_url=base_url,
             provider=provider,
-            max_tokens=50000,
+           
             )
     except Exception as e:
         # 记录异常信息，方便排查
@@ -337,7 +337,6 @@ def optimize_chart_code_with_llm(
                 model=model,
                 base_url=base_url,
                 provider=provider,
-                max_tokens=50000,
             )
         except Exception as e:  # noqa: BLE001
             with open(raw_log_path, "w", encoding="utf-8") as f:

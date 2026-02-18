@@ -135,7 +135,7 @@ def evaluate_chart_code(
             model=model,
             base_url=base_url,
             provider=provider,
-            max_tokens=2000,
+            
         )
     except Exception as e:
         error_log_path = log_dir / "evaluation_error.txt"
