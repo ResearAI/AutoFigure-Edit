@@ -1,0 +1,12 @@
+CUDA_VISIBLE_DEVICES=2 python /app/autofigure_main.py \
+  --method_file /app/examples/inputs/method.txt \
+  --output_dir outputs/demo \
+  --provider local \
+  --api_key YOUR_KEY \
+  --rmbg_model_path  /root/models/RMBG-2.0 \
+  --local_img_path /app/examples/inputs/test_gemini.png \
+  --optimize_iterations 1 \
+  --sam_checkpoint_path /root/models/sam3/sam3.pt \
+  --sam_bpe_path /app/sam3/assets/bpe_simple_vocab_16e6.txt.gz \
+  --convert_to_ppt \
+  --ppt_output_path ./outputs/demo/result.pptx

@@ -37,6 +37,8 @@
 | 🧩 **SVG 生成** | 生成与插图对齐的可编辑 SVG 模板。 |
 | 🖥️ **嵌入式编辑器** | 使用内置的 svg-edit 在浏览器中直接编辑 SVG。 |
 | 📦 **产物输出** | 每次运行保存 PNG/SVG 输出及裁剪后的图标。 |
+| 📊 **图表转代码** | 使用 SAM3 分割将图表转换为 Python 代码（可选），并支持代码评估。 |
+| 📑 **SVG 转 PPT** | 将生成的 SVG 插图直接导出为 PowerPoint 演示文稿。 |
 
 ---
 
@@ -101,29 +103,39 @@ AutoFigure2 的流程始于论文的方法文本，首先调用 **文本生成�
 
 ## ⚡ 快速开始
 
-### 选项 1: 命令行 (CLI)
+### 选项 1: Conda 环境（推荐）
 
 ```bash
-# 1) 安装依赖
+# 1) 创建并激活 conda 环境
+conda create -n autofigure python=3.10
+conda activate autofigure
+
+# 2) 安装依赖
 pip install -r requirements.txt
 
-# 2) 单独安装 SAM3 (本项目未包含)
-git clone https://github.com/facebookresearch/sam3.git
-cd sam3
-pip install -e .
+# 3) 单独安装 SAM3 
+pip install -e sam3
 ```
 
-**运行:**
+### 选项 2: Docker 部署
 
 ```bash
-python autofigure2.py \
-  --method_file paper.txt \
-  --output_dir outputs/demo \
-  --provider bianxie \
-  --api_key YOUR_KEY
+# 构建 Docker 镜像
+docker build -f docker/Dockerfile -t autofigure:latest .
+
+# 运行容器（支持 GPU）
+docker run --name autofigure \
+  --gpus all \
+  --shm-size 32g \
+  -p 8000:8000 \
+  --ipc=host \
+  -v /path/to/models:/root/models \
+  -v /path/to/code:/app/ \
+  -it autofigure:latest /bin/bash
+```
 ```
 
-### 选项 2: Web 界面
+### 选项 3: Web 界面
 
 ```bash
 python server.py
@@ -132,6 +144,51 @@ python server.py
 然后在浏览器打开 `http://localhost:8000`。
 
 ---
+
+**运行:**
+
+```bash
+# 基础用法：文本生成图像
+python autofigure_main.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider bianxie \
+  --api_key YOUR_KEY
+
+# 使用本地图片（跳过文本生图）
+python autofigure_main.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider local \
+  --local_img_path path/to/your/image.png \
+  --sam_checkpoint_path /path/to/sam3.pt
+
+# 将图表转换为 Python 代码（使用 SAM3 分割）
+python autofigure_main.py \
+  --method_file paper.txt \
+  --output_dir outputs/chart_demo \
+  --provider local \
+  --local_img_path path/to/chart.png \
+  --task_type chart_code \
+  --chart_use_sam \
+  --sam_checkpoint_path /path/to/sam3.pt \
+  --sam_prompt "axis,line,curve,bar,marker,legend,grid" \
+  --enable_evaluation \
+  --reference_code_path path/to/reference.py
+
+# 生成 SVG 并转换为 PowerPoint
+python autofigure_main.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider local \
+  --local_img_path path/to/image.png \
+  --sam_checkpoint_path /path/to/sam3.pt \
+  --convert_to_ppt \
+  --ppt_output_path outputs/demo/result.pptx
+```
+```
+
+
 
 ## 🖥️ Web 界面演示
 
@@ -172,7 +229,7 @@ SAM3 权重文件托管在 Hugging Face 上，下载前可能需要申请访问�
 
 ```bash
 export FAL_KEY="your-fal-key"
-python autofigure2.py \
+python autofigure_main.py \
   --method_file paper.txt \
   --output_dir outputs/demo \
   --provider bianxie \
@@ -184,7 +241,7 @@ python autofigure2.py \
 
 ```bash
 export ROBOFLOW_API_KEY="your-roboflow-key"
-python autofigure2.py \
+python autofigure_main.py \
   --method_file paper.txt \
   --output_dir outputs/demo \
   --provider bianxie \
@@ -198,48 +255,86 @@ python autofigure2.py \
 
 ## ⚙️ 配置
 
+
 ### 支持的 LLM 供应商
 
 | 供应商 | Base URL | 备注 |
 |----------|----------|------|
 | **OpenRouter** | `openrouter.ai/api/v1` | 支持 Gemini/Claude/其他模型 |
 | **Bianxie** | `api.bianxie.ai/v1` | 兼容 OpenAI 接口 |
+| **Local** | N/A | 使用本地图片，无需文本生图 |
 
 常用 CLI 参数：
 
-- `--provider` (openrouter | bianxie)
+- `--provider` (openrouter | bianxie | local)
 - `--image_model`, `--svg_model`
+- `--local_img_path` (使用 local 模式时的本地图片路径)
+- `--task_type` (icon_svg | chart_code，默认: icon_svg)
+- `--chart_use_sam` (图表代码生成时使用 SAM3)
+- `--enable_evaluation` (启用 chart_code 模式的代码评估)
 - `--sam_prompt` (逗号分隔的提示词)
 - `--sam_backend` (local | fal | roboflow | api)
+- `--sam_checkpoint_path` (SAM3 模型 checkpoint 路径)
 - `--sam_api_key` (API Key，默认读取 `FAL_KEY` 或 `ROBOFLOW_API_KEY`)
 - `--sam_max_masks` (fal.ai 最大 masks，默认 32)
 - `--merge_threshold` (0 禁用合并)
 - `--optimize_iterations` (0 禁用优化)
-- `--reference_image_path` (可选)
+- `--reference_image_path` (可选，用于风格迁移)
+- `--convert_to_ppt` (将 SVG 转换为 PowerPoint)
+- `--ppt_output_path` (PPT 输出路径)
+- `--reference_code_path` (参考代码路径)
 
 ---
 
 ## 📁 项目结构
+
 
 <details>
 <summary>点击展开目录树</summary>
 
 ```
 AutoFigure-edit/
-├── autofigure2.py         # 主流水线
-├── server.py              # FastAPI 后端
-├── requirements.txt
-├── web/                   # 静态前端
+├── autofigure_main.py         # 主入口文件
+├── server.py                  # FastAPI Web 后端
+├── requirements.txt           # Python 依赖
+├── autofigure/                # 核心包
+│   ├── config.py              # 配置和供应商设置
+│   ├── pipeline/              # 流水线模块
+│   │   ├── step1_generate.py  # 文本生成图像
+│   │   ├── step2_sam.py       # SAM3 分割
+│   │   ├── step3_rmbg.py      # 背景去除
+│   │   ├── step4_svg_template.py  # SVG 模板生成
+│   │   ├── step4_chart_code.py    # 图表转代码
+│   │   ├── step5_replace_icons.py  # 最终 SVG 组装
+│   │   ├── step6_optimize.py    # 多轮反馈优化
+│   │   └── step7_evaluate.py  # 评估chart2code代码生成质量
+│   ├── providers/             # LLM 供应商实现
+│   │   ├── openrouter.py
+│   │   ├── bianxie.py
+│   │   └── local.py           # 本地图片模式
+│   ├── processors/            # 图像处理工具
+│   ├── converters/            # 格式转换器（SVG 转 PPT）
+│   └── utils/                 # 辅助函数
+├── docker/                    # Docker 部署文件
+│   ├── Dockerfile
+│   └── README.md
+├── examples/                  # 示例脚本和输入
+│   ├── testfigure.sh
+│   ├── testchart_local.sh
+│   └── inputs/
+├── web/                       # Web 界面前端
 │   ├── index.html
 │   ├── canvas.html
 │   ├── styles.css
 │   ├── app.js
-│   └── vendor/svg-edit/   # 嵌入式 SVG 编辑器
-└── img/                   # README 资源
+│   └── vendor/svg-edit/       # 嵌入式 SVG 编辑器
+└── img/                       # README 资源
 ```
 </details>
 
 ---
+
+
 
 ## 🤝 社区与支持
 
