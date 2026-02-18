@@ -6,15 +6,20 @@ python-multipart>=0.0.9
 requests>=2.31
 numpy>=1.26
 Pillow>=10.0
-transformers>=4.39
 openai>=1.0
 
-# ML stack (adjust to match your CUDA/PyTorch setup)
-torch>=2.1
-torchvision>=0.16
-
-# Optional: SVG validation/rendering helpers
+# Optional SVG
 lxml>=4.9
 cairosvg>=2.7
 svglib>=1.5
 reportlab>=4.0
+
+# ML utils (no torch here)
+einops==0.8.2
+decord==0.6.0
+pycocotools==2.0.11
+psutil==7.2.2
+transformers==4.39
+kornia==0.8.2
+matplotlib==3.10.8
+python-pptx==1.0.2

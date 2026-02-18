@@ -38,6 +38,8 @@
 | 🧩 **SVG Generation** | Produce an editable SVG template aligned to the figure. |
 | 🖥️ **Embedded Editor** | Edit the SVG in-browser using the bundled svg-edit. |
 | 📦 **Artifact Outputs** | Save PNG/SVG outputs and icon crops per run. |
+| 📊 **Chart-to-Code** | Convert charts to Python code using SAM3 segmentation (optional) with code evaluation. |
+| 📑 **SVG-to-PPT** | Export generated SVG figures directly to PowerPoint presentations. |
 
 ---
 
@@ -104,29 +106,94 @@ Optionally, the SVG is iteratively refined by an **LLM optimizer** to better ali
 
 ## ⚡ Quick Start
 
-### Option 1: CLI
+### Option 1: Conda Environment (Recommended)
+
+```bash
+# 1) Create and activate conda environment
+conda create -n autofigure python=3.10
+conda activate autofigure
+
+# 2) Install dependencies
+pip install -r requirements.txt
+
+# 3) Install SAM3 separately (not vendored in this repo)
+
+pip install -e sam3
+```
+
+### Option 2: Docker Deployment
+
+```bash
+# Build Docker image
+docker build -f docker/Dockerfile -t autofigure:latest .
+
+# Run container with GPU support
+docker run --name autofigure \
+  --gpus all \
+  --shm-size 32g \
+  -p 30001:30000 \
+  --ipc=host \
+  -v /path/to/models:/root/models \
+  -v /path/to/code:/app/ \
+  -it autofigure:latest /bin/bash
+```
+```
+
+### Option 3: CLI
 
 ```bash
 # 1) Install dependencies
 pip install -r requirements.txt
 
-# 2) Install SAM3 separately (not vendored in this repo)
-git clone https://github.com/facebookresearch/sam3.git
-cd sam3
-pip install -e .
+# 2) Install SAM3 separately 
+
+pip install -e sam3
 ```
+
 
 **Run:**
 
 ```bash
-python autofigure2.py \
+# Basic usage with text-to-image generation
+python autofigure_main.py \
   --method_file paper.txt \
   --output_dir outputs/demo \
   --provider bianxie \
   --api_key YOUR_KEY
+
+# Using local image (skip text-to-image generation)
+python autofigure_main.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider local \
+  --local_img_path path/to/your/image.png \
+  --sam_checkpoint_path /path/to/sam3.pt
+
+# Convert chart to Python code (with SAM3 segmentation)
+python autofigure_main.py \
+  --method_file paper.txt \
+  --output_dir outputs/chart_demo \
+  --provider local \
+  --local_img_path path/to/chart.png \
+  --task_type chart_code \
+  --chart_use_sam \
+  --sam_checkpoint_path /path/to/sam3.pt \
+  --sam_prompt "axis,line,curve,bar,marker,legend,grid" \
+  --enable_evaluation \
+  --reference_code_path path/to/reference.py
+
+# Generate SVG and convert to PowerPoint
+python autofigure_main.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider local \
+  --local_img_path path/to/image.png \
+  --sam_checkpoint_path /path/to/sam3.pt \
+  --convert_to_ppt \
+  --ppt_output_path outputs/demo/result.pptx
 ```
 
-### Option 2: Web Interface
+### Option 4: Web Interface
 
 ```bash
 python server.py
@@ -178,7 +245,7 @@ If you prefer not to install SAM3 locally, you can use an API backend (also supp
 
 ```bash
 export FAL_KEY="your-fal-key"
-python autofigure2.py \
+python autofigure_main.py \
   --method_file paper.txt \
   --output_dir outputs/demo \
   --provider bianxie \
@@ -190,7 +257,7 @@ python autofigure2.py \
 
 ```bash
 export ROBOFLOW_API_KEY="your-roboflow-key"
-python autofigure2.py \
+python autofigure_main.py \
   --method_file paper.txt \
   --output_dir outputs/demo \
   --provider bianxie \
@@ -204,24 +271,33 @@ Optional CLI flags (API):
 
 ## ⚙️ Configuration
 
+
 ### Supported LLM Providers
 
 | Provider | Base URL | Notes |
 |----------|----------|------|
 | **OpenRouter** | `openrouter.ai/api/v1` | Supports Gemini/Claude/others |
 | **Bianxie** | `api.bianxie.ai/v1` | OpenAI-compatible API |
+| **Local** | N/A | Use local images without text-to-image generation |
 
 Common CLI flags:
 
-- `--provider` (openrouter | bianxie)
+- `--provider` (openrouter | bianxie | local)
 - `--image_model`, `--svg_model`
+- `--local_img_path` (path to local image when using local provider)
+- `--task_type` (icon_svg | chart_code, default: icon_svg)
+- `--chart_use_sam` (use SAM3 for chart code generation)
+- `--enable_evaluation` (enable code evaluation for chart_code mode)
 - `--sam_prompt` (comma-separated prompts)
 - `--sam_backend` (local | fal | roboflow | api)
+- `--sam_checkpoint_path` (path to SAM3 checkpoint)
 - `--sam_api_key` (API key override; falls back to `FAL_KEY` or `ROBOFLOW_API_KEY`)
 - `--sam_max_masks` (fal.ai max masks, default 32)
 - `--merge_threshold` (0 disables merging)
 - `--optimize_iterations` (0 disables optimization)
-- `--reference_image_path` (optional)
+- `--reference_image_path` (optional, for style transfer)
+- `--convert_to_ppt` (convert SVG to PowerPoint)
+- `--ppt_output_path` (PPT output path)
 
 ---
 
@@ -232,15 +308,42 @@ Common CLI flags:
 
 ```
 AutoFigure-edit/
-├── autofigure2.py         # Main pipeline
-├── server.py              # FastAPI backend
-├── requirements.txt
-├── web/                   # Static frontend
+├── autofigure_main.py         # Main entry point
+├── server.py                  # FastAPI backend for web interface
+├── requirements.txt           # Python dependencies
+├── autofigure/                # Core package
+│   ├── config.py              # Configuration and provider settings
+│   ├── pipeline/              # Pipeline modules
+│   │   ├── step1_generate.py  # Text-to-image generation
+│   │   ├── step2_sam.py       # SAM3 segmentation
+│   │   ├── step3_rmbg.py      # Background removal
+│   │   ├── step4_svg_template.py  # SVG template generation
+│   │   ├── step4_chart_code.py    # Chart-to-code generation
+│   │   └── step5_assemble.py  # Final SVG assembly
+│   ├── providers/             # LLM provider implementations
+│   │   ├── openrouter.py
+│   │   ├── bianxie.py
+│   │   └── local.py           # Local image mode
+│   ├── processors/            # Image processing utilities
+│   ├── converters/            # Format converters (SVG to PPT)
+│   └── utils/                 # Helper functions
+├── docker/                    # Docker deployment files
+│   ├── Dockerfile
+│   └── README.md
+├── examples/                  # Example scripts and inputs
+│   ├── testfigure.sh
+│   └── testchart_local.sh
+├── web/                       # Web interface frontend
 │   ├── index.html
 │   ├── canvas.html
 │   ├── styles.css
 │   ├── app.js
-│   └── vendor/svg-edit/   # Embedded SVG editor
+│   └── vendor/svg-edit/       # Embedded SVG editor
+└── img/                       # README assets
+```
+</details>
+
+---
 └── img/                   # README assets
 ```
 </details>

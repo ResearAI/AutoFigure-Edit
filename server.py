@@ -76,10 +76,18 @@ class RunRequest(BaseModel):
     base_url: Optional[str] = None
     image_model: Optional[str] = None
     svg_model: Optional[str] = None
+    local_img_path: Optional[str] = None
+    task_type: str = "icon_svg"
+    chart_use_sam: bool = False
     sam_prompt: Optional[str] = None
+    min_score: Optional[float] = None
     sam_backend: Optional[str] = None
     sam_api_key: Optional[str] = None
+    sam_checkpoint_path: Optional[str] = None
+    sam_bpe_path: Optional[str] = None
     sam_max_masks: Optional[int] = None
+    rmbg_model_path: Optional[str] = None
+    stop_after: Optional[int] = None
     placeholder_mode: Optional[str] = None
     merge_threshold: Optional[float] = None
     optimize_iterations: Optional[int] = None
@@ -105,7 +113,7 @@ def run_job(req: RunRequest) -> JSONResponse:
 
     cmd = [
         PYTHON_EXECUTABLE,
-        str(BASE_DIR / "autofigure2.py"),
+        str(BASE_DIR / "autofigure_main.py"),
         "--method_text",
         req.method_text,
         "--output_dir",
@@ -123,6 +131,14 @@ def run_job(req: RunRequest) -> JSONResponse:
     if req.svg_model:
         cmd += ["--svg_model", req.svg_model]
 
+    # 新增参数支持
+    if req.local_img_path:
+        cmd += ["--local_img_path", req.local_img_path]
+    if req.task_type:
+        cmd += ["--task_type", req.task_type]
+    if req.chart_use_sam:
+        cmd += ["--chart_use_sam"]
+
     sam_prompt = req.sam_prompt or DEFAULT_SAM_PROMPT
     placeholder_mode = req.placeholder_mode or DEFAULT_PLACEHOLDER_MODE
     merge_threshold = (
@@ -132,12 +148,23 @@ def run_job(req: RunRequest) -> JSONResponse:
     cmd += ["--sam_prompt", sam_prompt]
     cmd += ["--placeholder_mode", placeholder_mode]
     cmd += ["--merge_threshold", str(merge_threshold)]
+    
+    if req.min_score is not None:
+        cmd += ["--min_score", str(req.min_score)]
     if req.sam_backend:
         cmd += ["--sam_backend", req.sam_backend]
     if req.sam_api_key:
         cmd += ["--sam_api_key", req.sam_api_key]
+    if req.sam_checkpoint_path:
+        cmd += ["--sam_checkpoint_path", req.sam_checkpoint_path]
+    if req.sam_bpe_path:
+        cmd += ["--sam_bpe_path", req.sam_bpe_path]
     if req.sam_max_masks is not None:
         cmd += ["--sam_max_masks", str(req.sam_max_masks)]
+    if req.rmbg_model_path:
+        cmd += ["--rmbg_model_path", req.rmbg_model_path]
+    if req.stop_after is not None:
+        cmd += ["--stop_after", str(req.stop_after)]
     if req.optimize_iterations is not None:
         cmd += ["--optimize_iterations", str(req.optimize_iterations)]
 
@@ -490,7 +517,7 @@ app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="static")
 if __name__ == "__main__":
     import uvicorn
 
-    port = 8000
+    port = 30000
     _ensure_port_free(port)
     uvicorn.run(
         "server:app",
