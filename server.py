@@ -490,12 +490,33 @@ app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="static")
 if __name__ == "__main__":
     import uvicorn
 
-    port = 8000
-    _ensure_port_free(port)
-    uvicorn.run(
-        "server:app",
-        host="0.0.0.0",
-        port=port,
-        reload=False,
-        access_log=False,
-    )
+    def find_available_port(start_port: int, max_attempts: int = 100) -> int:
+        for port in range(start_port, start_port + max_attempts):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                try:
+                    sock.bind(("0.0.0.0", port))
+                    return port
+                except OSError:
+                    print(f"Port {port} is in use, trying next...")
+                    continue
+        raise IOError(f"No available ports found in range ({start_port} - {start_port + max_attempts})")
+
+    initial_port = 8000
+    
+    try:
+        actual_port = find_available_port(initial_port)
+        
+        print(f"--- Starting Server ---")
+        print(f"Local access: http://127.0.0.1:{actual_port}")
+        print(f"-----------------------")
+
+        uvicorn.run(
+            "server:app",
+            host="0.0.0.0",
+            port=actual_port,
+            reload=False,
+            access_log=False,
+        )
+    except Exception as e:
+        print(f"Startup failed: {e}")
+        sys.exit(1)

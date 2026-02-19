@@ -28,6 +28,13 @@
 
 ---
 
+## 🔥 News
+
+- **[2026.02.17]** The **AutoFigure-Edit online platform** is now live! It is free for all scholars to use. Try it out at [deepscientist.cc](https://deepscientist.cc).
+- **[2026.01.26]** AutoFigure has been accepted to **ICLR 2026**! You can read the paper on [arXiv](https://arxiv.org/abs/2602.03828).
+
+---
+
 ## ✨ Features
 
 | Feature | Description |
