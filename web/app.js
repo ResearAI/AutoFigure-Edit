@@ -40,7 +40,6 @@
     }
 
     if (uploadZone && referenceFile) {
-      uploadZone.addEventListener("click", () => referenceFile.click());
       uploadZone.addEventListener("dragover", (event) => {
         event.preventDefault();
         uploadZone.classList.add("dragging");
