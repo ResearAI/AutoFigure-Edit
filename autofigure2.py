@@ -100,14 +100,26 @@ PROVIDER_CONFIGS = {
         ),
     },
     "bianxie": {
-        "base_url": "https://api.bianxie.ai/v1",
-        "default_image_model": "gemini-3-pro-image-preview",
-        "default_svg_model": "gemini-3.1-pro-preview",
+        "api_key": os.environ.get("BIANXIE_API_KEY", ""),
+        "base_url": os.environ.get("BIANXIE_BASE_URL", "https://api.bianxie.ai/v1"),
+        "default_image_model": os.environ.get(
+            "BIANXIE_IMAGE_MODEL", "gemini-3-pro-image-preview"
+        ),
+        "default_svg_model": os.environ.get(
+            "BIANXIE_SVG_MODEL", "gemini-3.1-pro-preview"
+        ),
     },
     "gemini": {
-        "base_url": "https://generativelanguage.googleapis.com/v1beta",
-        "default_image_model": "gemini-3-pro-image-preview",
-        "default_svg_model": "gemini-3.1-pro",
+        "api_key": os.environ.get("GEMINI_API_KEY", ""),
+        "base_url": os.environ.get(
+            "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+        ),
+        "default_image_model": os.environ.get(
+            "GEMINI_IMAGE_MODEL", "gemini-3-pro-image-preview"
+        ),
+        "default_svg_model": os.environ.get(
+            "GEMINI_SVG_MODEL", "gemini-3.1-pro"
+        ),
     },
 }
 
@@ -2824,7 +2836,7 @@ def method_to_svg(
     """
     # 获取默认配置
     config = PROVIDER_CONFIGS[provider]
-    if not api_key and provider == "openrouter":
+    if not api_key:
         api_key = config.get("api_key") or None
     if not api_key:
         raise ValueError("必须提供 api_key")
