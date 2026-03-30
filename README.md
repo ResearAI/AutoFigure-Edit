@@ -324,6 +324,7 @@ Optional CLI flags (API):
 | **OpenRouter** | `openrouter.ai/api/v1` | Supports Gemini/Claude/others |
 | **Bianxie** | `api.bianxie.ai/v1` | OpenAI-compatible API |
 | **Gemini (Google)** | `generativelanguage.googleapis.com/v1beta` | Official Google Gemini API (`google-genai`) |
+| **MiniMax** | `api.minimax.io/v1` | OpenAI-compatible API; SVG generation only (no image gen) |
 
 Common CLI flags:
 
@@ -337,6 +338,33 @@ Common CLI flags:
 - `--merge_threshold` (0 disables merging)
 - `--optimize_iterations` (0 disables optimization)
 - `--reference_image_path` (optional)
+- `--figure_path` (pre-generated figure image, skips step 1)
+
+### Using MiniMax
+
+[MiniMax](https://www.minimaxi.com/) provides OpenAI-compatible LLM APIs with strong multimodal capabilities (MiniMax-M2.7, 204K context). MiniMax excels at SVG generation and text understanding tasks but does not support image generation. Use `--figure_path` to provide a pre-generated figure:
+
+```bash
+# Step 1: Generate figure with another provider
+python autofigure2.py \
+  --method_file paper.txt \
+  --output_dir outputs/step1 \
+  --provider gemini \
+  --api_key YOUR_GEMINI_KEY \
+  --stop_after 1
+
+# Step 2: Use MiniMax for SVG generation (steps 2-5)
+export MINIMAX_API_KEY="your-minimax-key"
+python autofigure2.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider minimax \
+  --figure_path outputs/step1/figure.png
+```
+
+Available MiniMax models:
+- `MiniMax-M2.7` (default) — latest model, 204K context
+- `MiniMax-M2.7-highspeed` — faster variant, 204K context
 
 ### Custom Provider / Custom Base URL
 

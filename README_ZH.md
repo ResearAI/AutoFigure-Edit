@@ -314,10 +314,11 @@ python autofigure2.py \
 | **OpenRouter** | `openrouter.ai/api/v1` | 支持 Gemini/Claude/其他模型 |
 | **Bianxie** | `api.bianxie.ai/v1` | 兼容 OpenAI 接口 |
 | **Gemini (Google)** | `generativelanguage.googleapis.com/v1beta` | Google 官方 Gemini API（`google-genai`） |
+| **MiniMax** | `api.minimax.io/v1` | 兼容 OpenAI 接口；仅 SVG 生成（不支持图像生成） |
 
 常用 CLI 参数：
 
-- `--provider` (openrouter | bianxie | gemini)
+- `--provider` (openrouter | bianxie | gemini | minimax)
 - `--image_model`, `--svg_model`
 - `--image_size` (1K | 2K | 4K，仅 Gemini)
 - `--sam_prompt` (逗号分隔的提示词)
@@ -327,6 +328,33 @@ python autofigure2.py \
 - `--merge_threshold` (0 禁用合并)
 - `--optimize_iterations` (0 禁用优化)
 - `--reference_image_path` (可选)
+- `--figure_path` (预生成图片路径，跳过步骤一)
+
+### 使用 MiniMax
+
+[MiniMax](https://www.minimaxi.com/) 提供兼容 OpenAI 的 LLM API，具有强大的多模态能力（MiniMax-M2.7，204K 上下文）。MiniMax 擅长 SVG 生成和文本理解，但不支持图像生成。使用 `--figure_path` 提供预生成的图片：
+
+```bash
+# 步骤 1：用其他 provider 生成图片
+python autofigure2.py \
+  --method_file paper.txt \
+  --output_dir outputs/step1 \
+  --provider gemini \
+  --api_key YOUR_GEMINI_KEY \
+  --stop_after 1
+
+# 步骤 2：用 MiniMax 进行 SVG 生成（步骤 2-5）
+export MINIMAX_API_KEY="your-minimax-key"
+python autofigure2.py \
+  --method_file paper.txt \
+  --output_dir outputs/demo \
+  --provider minimax \
+  --figure_path outputs/step1/figure.png
+```
+
+可用的 MiniMax 模型：
+- `MiniMax-M2.7`（默认）— 最新模型，204K 上下文
+- `MiniMax-M2.7-highspeed` — 高速版本，204K 上下文
 
 ### 自定义提供商 / 自定义 Base URL
 

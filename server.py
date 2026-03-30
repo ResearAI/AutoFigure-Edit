@@ -101,6 +101,7 @@ class RunRequest(BaseModel):
     merge_threshold: Optional[float] = None
     optimize_iterations: Optional[int] = None
     reference_image_path: Optional[str] = None
+    figure_path: Optional[str] = None
 
 
 app = FastAPI()
@@ -173,6 +174,15 @@ def run_job(req: RunRequest) -> JSONResponse:
             else reference_path
         )
         cmd += ["--reference_image_path", reference_path]
+
+    if req.figure_path:
+        fig_path = req.figure_path
+        fig_path = (
+            str((BASE_DIR / fig_path).resolve())
+            if not Path(fig_path).is_absolute()
+            else fig_path
+        )
+        cmd += ["--figure_path", fig_path]
 
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
