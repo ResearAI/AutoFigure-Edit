@@ -152,6 +152,22 @@ HF_TOKEN=hf_xxx
 Optional but recommended:
 
 ```bash
+# LLM provider defaults (used when CLI flags are omitted)
+OPENROUTER_API_KEY=sk-or-v1-xxx
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_IMAGE_MODEL=google/gemini-3-pro-image-preview
+OPENROUTER_SVG_MODEL=google/gemini-3.1-pro-preview
+
+BIANXIE_API_KEY=your_bianxie_key
+BIANXIE_BASE_URL=https://api.bianxie.ai/v1
+BIANXIE_IMAGE_MODEL=gemini-3-pro-image-preview
+BIANXIE_SVG_MODEL=gemini-3.1-pro-preview
+
+GEMINI_API_KEY=your_gemini_key
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview
+GEMINI_SVG_MODEL=gemini-3.1-pro
+
 # SAM3 API backend (Docker default in UI is Roboflow)
 ROBOFLOW_API_KEY=your_roboflow_key
 
@@ -333,6 +349,8 @@ Optional CLI flags (API):
 | **OpenRouter** | `openrouter.ai/api/v1` | Supports Gemini/Claude/others |
 | **Bianxie** | `api.bianxie.ai/v1` | OpenAI-compatible API |
 | **Gemini (Google)** | `generativelanguage.googleapis.com/v1beta` | Official Google Gemini API (`google-genai`) |
+
+Each provider can read `API_KEY`, `BASE_URL`, `IMAGE_MODEL`, and `SVG_MODEL` defaults from `.env`.
 
 Common CLI flags:
 

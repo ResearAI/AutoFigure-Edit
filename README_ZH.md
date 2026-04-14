@@ -136,6 +136,22 @@ HF_TOKEN=hf_xxx
 可选但建议配置：
 
 ```bash
+# LLM provider 默认值（当未传 CLI 参数时使用）
+OPENROUTER_API_KEY=sk-or-v1-xxx
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_IMAGE_MODEL=google/gemini-3-pro-image-preview
+OPENROUTER_SVG_MODEL=google/gemini-3.1-pro-preview
+
+BIANXIE_API_KEY=your_bianxie_key
+BIANXIE_BASE_URL=https://api.bianxie.ai/v1
+BIANXIE_IMAGE_MODEL=gemini-3-pro-image-preview
+BIANXIE_SVG_MODEL=gemini-3.1-pro-preview
+
+GEMINI_API_KEY=your_gemini_key
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview
+GEMINI_SVG_MODEL=gemini-3.1-pro
+
 # SAM3 API（Docker/Web 默认后端为 Roboflow）
 ROBOFLOW_API_KEY=your_roboflow_key
 
@@ -314,6 +330,8 @@ python autofigure2.py \
 | **OpenRouter** | `openrouter.ai/api/v1` | 支持 Gemini/Claude/其他模型 |
 | **Bianxie** | `api.bianxie.ai/v1` | 兼容 OpenAI 接口 |
 | **Gemini (Google)** | `generativelanguage.googleapis.com/v1beta` | Google 官方 Gemini API（`google-genai`） |
+
+每个 provider 都支持从 `.env` 读取 `API_KEY`、`BASE_URL`、`IMAGE_MODEL`、`SVG_MODEL` 默认值。
 
 常用 CLI 参数：
 

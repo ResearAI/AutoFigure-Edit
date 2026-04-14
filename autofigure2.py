@@ -90,19 +90,36 @@ from transformers import AutoModelForImageSegmentation
 
 PROVIDER_CONFIGS = {
     "openrouter": {
-        "base_url": "https://openrouter.ai/api/v1",
-        "default_image_model": "google/gemini-3-pro-image-preview",
-        "default_svg_model": "google/gemini-3.1-pro-preview",
+        "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
+        "base_url": os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        "default_image_model": os.environ.get(
+            "OPENROUTER_IMAGE_MODEL", "google/gemini-3-pro-image-preview"
+        ),
+        "default_svg_model": os.environ.get(
+            "OPENROUTER_SVG_MODEL", "google/gemini-3.1-pro-preview"
+        ),
     },
     "bianxie": {
-        "base_url": "https://api.bianxie.ai/v1",
-        "default_image_model": "gemini-3-pro-image-preview",
-        "default_svg_model": "gemini-3.1-pro-preview",
+        "api_key": os.environ.get("BIANXIE_API_KEY", ""),
+        "base_url": os.environ.get("BIANXIE_BASE_URL", "https://api.bianxie.ai/v1"),
+        "default_image_model": os.environ.get(
+            "BIANXIE_IMAGE_MODEL", "gemini-3-pro-image-preview"
+        ),
+        "default_svg_model": os.environ.get(
+            "BIANXIE_SVG_MODEL", "gemini-3.1-pro-preview"
+        ),
     },
     "gemini": {
-        "base_url": "https://generativelanguage.googleapis.com/v1beta",
-        "default_image_model": "gemini-3-pro-image-preview",
-        "default_svg_model": "gemini-3.1-pro",
+        "api_key": os.environ.get("GEMINI_API_KEY", ""),
+        "base_url": os.environ.get(
+            "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+        ),
+        "default_image_model": os.environ.get(
+            "GEMINI_IMAGE_MODEL", "gemini-3-pro-image-preview"
+        ),
+        "default_svg_model": os.environ.get(
+            "GEMINI_SVG_MODEL", "gemini-3.1-pro"
+        ),
     },
 }
 
@@ -2883,11 +2900,12 @@ def method_to_svg(
     Returns:
         结果字典
     """
-    if not api_key:
-        raise ValueError("必须提供 api_key")
-
     # 获取默认配置
     config = PROVIDER_CONFIGS[provider]
+    if not api_key:
+        api_key = config.get("api_key") or None
+    if not api_key:
+        raise ValueError("必须提供 api_key")
     if base_url is None:
         base_url = config["base_url"]
     if image_gen_model is None:
