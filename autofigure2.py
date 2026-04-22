@@ -5,6 +5,7 @@ Paper Method 到 SVG 图标替换完整流程 (Label 模式增强版 + Box合并
 - openrouter: OpenRouter API (https://openrouter.ai/api/v1)
 - bianxie: Bianxie API (https://api.bianxie.ai/v1) - 使用 OpenAI SDK
 - gemini: Google Gemini 官方 API (https://ai.google.dev/)
+- minimax: MiniMax API (https://api.minimax.io/v1) - 使用 OpenAI SDK（仅 SVG 生成，不支持图像生成）
 
 占位符模式 (--placeholder_mode):
 - none: 无特殊样式（默认黑色边框）
@@ -104,9 +105,14 @@ PROVIDER_CONFIGS = {
         "default_image_model": "gemini-3.1-flash-image-preview",
         "default_svg_model": "gemini-3.1-pro-preview",
     },
+    "minimax": {
+        "base_url": "https://api.minimax.io/v1",
+        "default_image_model": None,
+        "default_svg_model": "MiniMax-M2.7",
+    },
 }
 
-ProviderType = Literal["openrouter", "bianxie", "gemini"]
+ProviderType = Literal["openrouter", "bianxie", "gemini", "minimax"]
 PlaceholderMode = Literal["none", "box", "label"]
 GEMINI_DEFAULT_IMAGE_SIZE = "4K"
 IMAGE_SIZE_CHOICES = ("1K", "2K", "4K")
@@ -158,6 +164,8 @@ def call_llm_text(
         return _call_bianxie_text(prompt, api_key, model, base_url, max_tokens, temperature)
     if provider == "gemini":
         return _call_gemini_text(prompt, api_key, model, max_tokens, temperature)
+    if provider == "minimax":
+        return _call_minimax_text(prompt, api_key, model, base_url, max_tokens, temperature)
     return _call_openrouter_text(prompt, api_key, model, base_url, max_tokens, temperature)
 
 
@@ -189,6 +197,8 @@ def call_llm_multimodal(
         return _call_bianxie_multimodal(contents, api_key, model, base_url, max_tokens, temperature)
     if provider == "gemini":
         return _call_gemini_multimodal(contents, api_key, model, max_tokens, temperature)
+    if provider == "minimax":
+        return _call_minimax_multimodal(contents, api_key, model, base_url, max_tokens, temperature)
     return _call_openrouter_multimodal(contents, api_key, model, base_url, max_tokens, temperature)
 
 
@@ -224,6 +234,8 @@ def call_llm_image_generation(
             reference_image=reference_image,
             image_size=image_size,
         )
+    if provider == "minimax":
+        return _call_minimax_image_generation(prompt, api_key, model, base_url, reference_image)
     return _call_openrouter_image_generation(prompt, api_key, model, base_url, reference_image)
 
 
@@ -939,6 +951,114 @@ def _call_gemini_image_generation(
     except Exception as e:
         print(f"[Gemini] 图像生成 API 调用失败: {e}")
         raise
+
+
+# ============================================================================
+# MiniMax Provider 实现 (OpenAI-compatible API)
+# ============================================================================
+
+def _clamp_minimax_temperature(temperature: float) -> float:
+    """MiniMax requires temperature in (0.0, 1.0]."""
+    if temperature <= 0.0:
+        return 0.01
+    if temperature > 1.0:
+        return 1.0
+    return temperature
+
+
+def _call_minimax_text(
+    prompt: str,
+    api_key: str,
+    model: str,
+    base_url: str,
+    max_tokens: int = 16000,
+    temperature: float = 0.7,
+) -> Optional[str]:
+    """Call MiniMax text API via OpenAI SDK (OpenAI-compatible endpoint)."""
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(base_url=base_url, api_key=api_key)
+        temperature = _clamp_minimax_temperature(temperature)
+
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+        return completion.choices[0].message.content if completion and completion.choices else None
+    except Exception as e:
+        print(f"[MiniMax] API call failed: {e}")
+        raise
+
+
+def _call_minimax_multimodal(
+    contents: List[Any],
+    api_key: str,
+    model: str,
+    base_url: str,
+    max_tokens: int = 16000,
+    temperature: float = 0.7,
+) -> Optional[str]:
+    """Call MiniMax multimodal API via OpenAI SDK (vision support)."""
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(base_url=base_url, api_key=api_key)
+        temperature = _clamp_minimax_temperature(temperature)
+
+        message_content: List[Dict[str, Any]] = []
+        for part in contents:
+            if isinstance(part, str):
+                message_content.append({"type": "text", "text": part})
+            elif isinstance(part, Image.Image):
+                buf = io.BytesIO()
+                part.save(buf, format='PNG')
+                image_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+                message_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_b64}"}
+                })
+
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": message_content}],
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+        text = completion.choices[0].message.content if completion and completion.choices else None
+        if text:
+            # Strip <think>...</think> tags from MiniMax reasoning models,
+            # but only if there is content outside the think block.
+            stripped = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+            if stripped:
+                text = stripped
+        return text
+    except Exception as e:
+        print(f"[MiniMax] Multimodal API call failed: {e}")
+        raise
+
+
+def _call_minimax_image_generation(
+    prompt: str,
+    api_key: str,
+    model: str,
+    base_url: str,
+    reference_image: Optional[Image.Image] = None,
+) -> Optional[Image.Image]:
+    """MiniMax does not support image generation.
+
+    Use --figure_path to provide a pre-generated figure when using
+    MiniMax as the provider, or use a different provider for step 1.
+    """
+    raise NotImplementedError(
+        "MiniMax does not support image generation. "
+        "Use --figure_path to provide a pre-generated figure, "
+        "or use a different provider (openrouter/bianxie/gemini) for image generation."
+    )
 
 
 # ============================================================================
@@ -2854,6 +2974,7 @@ def method_to_svg(
     optimize_iterations: int = 2,
     merge_threshold: float = 0.9,
     image_size: str = GEMINI_DEFAULT_IMAGE_SIZE,
+    figure_path: Optional[str] = None,
 ) -> dict:
     """
     完整流程：Paper Method → SVG with Icons
@@ -2879,6 +3000,7 @@ def method_to_svg(
             - "label": 灰色填充+黑色边框+序号标签（推荐）
         optimize_iterations: 步骤 4.6 优化迭代次数（0 表示跳过优化）
         merge_threshold: Box合并阈值，重叠比例超过此值则合并（0表示不合并，默认0.9）
+        figure_path: 预生成的图片路径（跳过步骤一），适用于不支持图像生成的 provider（如 MiniMax）
 
     Returns:
         结果字典
@@ -2919,24 +3041,35 @@ def method_to_svg(
         print(f"生图分辨率: {image_size}")
     print("=" * 60)
 
-    # 步骤一：生成图片
-    figure_path = output_dir / "figure.png"
-    generate_figure_from_method(
-        method_text=method_text,
-        output_path=str(figure_path),
-        api_key=api_key,
-        model=image_gen_model,
-        base_url=base_url,
-        provider=provider,
-        image_size=image_size,
-    )
+    # 步骤一：生成图片（或使用预生成的图片）
+    figure_path_out = output_dir / "figure.png"
+    if figure_path:
+        # 使用预生成的图片，跳过 LLM 图像生成
+        src = Path(figure_path)
+        if not src.is_file():
+            raise FileNotFoundError(f"预生成的图片不存在: {figure_path}")
+        print("=" * 60)
+        print("步骤一：使用预生成图片（跳过 LLM 图像生成）")
+        print("=" * 60)
+        print(f"图片来源: {figure_path}")
+        shutil.copy2(str(src), str(figure_path_out))
+    else:
+        generate_figure_from_method(
+            method_text=method_text,
+            output_path=str(figure_path_out),
+            api_key=api_key,
+            model=image_gen_model,
+            base_url=base_url,
+            provider=provider,
+            image_size=image_size,
+        )
 
     if stop_after == 1:
         print("\n" + "=" * 60)
         print("已在步骤 1 后停止")
         print("=" * 60)
         return {
-            "figure_path": str(figure_path),
+            "figure_path": str(figure_path_out),
             "samed_path": None,
             "boxlib_path": None,
             "icon_infos": [],
@@ -2947,7 +3080,7 @@ def method_to_svg(
 
     # 步骤二：SAM3 分割（包含Box合并）
     samed_path, boxlib_path, valid_boxes = segment_with_sam3(
-        image_path=str(figure_path),
+        image_path=str(figure_path_out),
         output_dir=str(output_dir),
         text_prompts=sam_prompts,
         min_score=min_score,
@@ -2968,7 +3101,7 @@ def method_to_svg(
         print("已在步骤 2 后停止")
         print("=" * 60)
         return {
-            "figure_path": str(figure_path),
+            "figure_path": str(figure_path_out),
             "samed_path": samed_path,
             "boxlib_path": boxlib_path,
             "icon_infos": [],
@@ -2984,7 +3117,7 @@ def method_to_svg(
     else:
         _ensure_rmbg2_access_ready(rmbg_model_path)
         icon_infos = crop_and_remove_background(
-            image_path=str(figure_path),
+            image_path=str(figure_path_out),
             boxlib_path=boxlib_path,
             output_dir=str(output_dir),
             rmbg_model_path=rmbg_model_path,
@@ -2995,7 +3128,7 @@ def method_to_svg(
         print("已在步骤 3 后停止")
         print("=" * 60)
         return {
-            "figure_path": str(figure_path),
+            "figure_path": str(figure_path_out),
             "samed_path": samed_path,
             "boxlib_path": boxlib_path,
             "icon_infos": icon_infos,
@@ -3010,7 +3143,7 @@ def method_to_svg(
     final_svg_path = output_dir / "final.svg"
     try:
         generate_svg_template(
-            figure_path=str(figure_path),
+            figure_path=str(figure_path_out),
             samed_path=samed_path,
             boxlib_path=boxlib_path,
             output_path=str(template_svg_path),
@@ -3024,7 +3157,7 @@ def method_to_svg(
 
         # 步骤 4.6：LLM 优化 SVG 模板（可配置迭代次数，0 表示跳过）
         optimize_svg_with_llm(
-            figure_path=str(figure_path),
+            figure_path=str(figure_path_out),
             samed_path=samed_path,
             final_svg_path=str(template_svg_path),
             output_path=str(optimized_template_path),
@@ -3041,7 +3174,7 @@ def method_to_svg(
             raise
         print(f"无图标模式下 SVG 重建失败（{exc}），改用内嵌原图的保底 SVG")
         create_embedded_figure_svg(
-            figure_path=str(figure_path),
+            figure_path=str(figure_path_out),
             output_path=str(final_svg_path),
         )
 
@@ -3050,7 +3183,7 @@ def method_to_svg(
         print("已在步骤 4 后停止")
         print("=" * 60)
         return {
-            "figure_path": str(figure_path),
+            "figure_path": str(figure_path_out),
             "samed_path": samed_path,
             "boxlib_path": boxlib_path,
             "icon_infos": icon_infos,
@@ -3069,7 +3202,7 @@ def method_to_svg(
         else:
             print("无图标模式缺少模板 SVG，生成保底 final.svg")
             create_embedded_figure_svg(
-                figure_path=str(figure_path),
+                figure_path=str(figure_path_out),
                 output_path=str(final_svg_path),
             )
     else:
@@ -3078,7 +3211,7 @@ def method_to_svg(
         print("步骤 4.7：坐标系对齐")
         print("-" * 50)
 
-        figure_img = Image.open(figure_path)
+        figure_img = Image.open(figure_path_out)
         figure_width, figure_height = figure_img.size
         print(f"原图尺寸: {figure_width} x {figure_height}")
 
@@ -3114,7 +3247,7 @@ def method_to_svg(
     print("\n" + "=" * 60)
     print("流程完成！")
     print("=" * 60)
-    print(f"原始图片: {figure_path}")
+    print(f"原始图片: {figure_path_out}")
     print(f"标记图片: {samed_path}")
     print(f"Box信息: {boxlib_path}")
     print(f"图标数量: {len(icon_infos)}")
@@ -3123,7 +3256,7 @@ def method_to_svg(
     print(f"最终SVG: {final_svg_path}")
 
     return {
-        "figure_path": str(figure_path),
+        "figure_path": str(figure_path_out),
         "samed_path": samed_path,
         "boxlib_path": boxlib_path,
         "icon_infos": icon_infos,
@@ -3180,13 +3313,13 @@ if __name__ == "__main__":
     # Provider 参数
     parser.add_argument(
         "--provider",
-        choices=["openrouter", "bianxie", "gemini"],
+        choices=["openrouter", "bianxie", "gemini", "minimax"],
         default="bianxie",
         help="API 提供商（默认: bianxie）"
     )
 
     # API 参数
-    parser.add_argument("--api_key", default=None, help="API Key")
+    parser.add_argument("--api_key", default=None, help="API Key（或设置 MINIMAX_API_KEY 环境变量）")
     parser.add_argument("--base_url", default=None, help="API base URL（默认根据 provider 自动设置）")
 
     # 模型参数
@@ -3198,6 +3331,13 @@ if __name__ == "__main__":
         help="生图分辨率（可选: 1K/2K/4K，默认: 4K）",
     )
     parser.add_argument("--svg_model", default=None, help="SVG生成模型（默认根据 provider 自动设置）")
+
+    # 预生成图片参数（跳过步骤一，适用于 MiniMax 等不支持图像生成的 provider）
+    parser.add_argument(
+        "--figure_path",
+        default=None,
+        help="预生成的图片路径（跳过步骤一的 LLM 图像生成，适用于 minimax 等不支持图像生成的 provider）",
+    )
 
     # Step 1 参考图片参数
     parser.add_argument(
@@ -3266,11 +3406,18 @@ if __name__ == "__main__":
         parser.error("--use_reference_image 需要 --reference_image_path")
     if args.reference_image_path and not Path(args.reference_image_path).is_file():
         parser.error(f"参考图片不存在: {args.reference_image_path}")
+    if args.figure_path and not Path(args.figure_path).is_file():
+        parser.error(f"预生成图片不存在: {args.figure_path}")
 
     USE_REFERENCE_IMAGE = bool(args.use_reference_image)
     REFERENCE_IMAGE_PATH = args.reference_image_path
     if REFERENCE_IMAGE_PATH:
         USE_REFERENCE_IMAGE = True
+
+    # API key: CLI flag > environment variable
+    api_key = args.api_key
+    if not api_key and args.provider == "minimax":
+        api_key = os.environ.get("MINIMAX_API_KEY")
 
     # 获取 method 文本：优先使用 --method_text
     method_text = args.method_text
@@ -3282,7 +3429,7 @@ if __name__ == "__main__":
     result = method_to_svg(
         method_text=method_text,
         output_dir=args.output_dir,
-        api_key=args.api_key,
+        api_key=api_key,
         base_url=args.base_url,
         provider=args.provider,
         image_gen_model=args.image_model,
@@ -3298,4 +3445,5 @@ if __name__ == "__main__":
         placeholder_mode=args.placeholder_mode,
         optimize_iterations=args.optimize_iterations,
         merge_threshold=args.merge_threshold,
+        figure_path=args.figure_path,
     )
