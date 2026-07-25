@@ -585,14 +585,33 @@ year={2026},
 url={https://openreview.net/forum?id=5N3z9JQJKq}
 }
 
-@misc{lin2026autofigureeditgeneratingeditablescientific,
-      title={AutoFigure-Edit: Generating Editable Scientific Illustration}, 
-      author={Zhen Lin and Qiujie Xie and Minjun Zhu and Shichen Li and Qiyao Sun and Enhao Gu and Yiran Ding and Ke Sun and Fang Guo and Panzhong Lu and Zhiyuan Ning and Yixuan Weng and Yue Zhang},
-      year={2026},
-      eprint={2603.06674},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2603.06674}, 
+@inproceedings{lin-etal-2026-autofigure,
+    title = "{A}uto{F}igure-Edit: Generating Editable Scientific Illustrations via Reference-Guided Styling",
+    author = "Lin, Zhen  and
+      Xie, Qiujie  and
+      Zhu, Minjun  and
+      Li, Shichen  and
+      Sun, QiYao  and
+      Gu, Enhao  and
+      Ding, Yiran  and
+      Sun, Ke  and
+      Guo, Fang  and
+      Lu, Panzhong  and
+      Ning, Zhiyuan  and
+      Weng, Yixuan  and
+      Zhang, Yue",
+    editor = "Durrett, Greg  and
+      Jian, Ping",
+    booktitle = "Proceedings of the 64th Annual Meeting of the {A}ssociation for {C}omputational {L}inguistics (Volume 3: System Demonstrations)",
+    month = jul,
+    year = "2026",
+    address = "San Diego, California, United States",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2026.acl-demo.6/",
+    doi = "10.18653/v1/2026.acl-demo.6",
+    pages = "57--67",
+    ISBN = "979-8-89176-392-0",
+    abstract = "High-quality scientific illustrations are essential for communicating complex scientific and technical concepts, yet existing automated systems remain limited in editability, stylistic controllability, and efficiency. We present AutoFigure-Edit, an end-to-end system that generates fully editable scientific illustrations from long-form scientific text while enabling flexible style adaptation through user-provided reference images. By combining long-context understanding, reference-guided styling, and native SVG editing, it enables efficient creation and refinement of high-quality scientific illustrations. To facilitate further progress in this field, we release the video at https://youtu.be/10IH8SyJjAQ, the full codebase at https://github.com/ResearAI/AutoFigure-Edit and provide a live demo for easy access and interactive use at https://autofigure.cc/."
 }
 
 @dataset{figurebench2025,
