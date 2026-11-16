@@ -14,6 +14,7 @@
 [![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-FigureBench-orange?style=for-the-badge)](https://huggingface.co/datasets/WestlakeNLP/FigureBench)
 [![Website](https://img.shields.io/badge/Website-deepscientist.cc-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://deepscientist.cc/)
 
+
 <p align="center">
   <strong>From Method Text to Editable SVG</strong><br>
   AutoFigure-Edit is the next version of AutoFigure. It turns paper method sections into fully editable SVG figures and lets you refine them in an embedded SVG editor.
@@ -632,15 +633,16 @@ Repository metadata and usage guidance:
 
 We would like to thank the [Linux.do](https://linux.do/) community for their support.
 
-We also thank the following sponsor for supporting this project:
+We also thank the following sponsors for supporting this project:
 
 | Sponsor | Link | Support | Note |
 |---|---|---|---|
 | Bianxie AI Aggregate API | [https://api.bianxie.ai](https://bianxieai.com/autofigure) | Provides mainland China-friendly access to GPT-image-2 and Gemini-3.1-Pro for AutoFigure-Edit users | No foreign credit card required |
+| AtomGit | [AutoFigure-Edit on AtomGit](https://atomgit.com/TuchuanLin/AutoFigure-Edit) | Hosts this project in China, helping users in mainland China access the repository and download releases more quickly | China-based hosting |
 
 This project is licensed under the MIT License - see `LICENSE` for details.
-Name and logo usage are covered separately in `TRADEMARK.md`.
 
+Name and logo usage are covered separately in `TRADEMARK.md`.
 ---
 
 ## More From ResearAI
