@@ -487,6 +487,32 @@ def _build_openai_response_input(contents: List[Any]) -> List[Dict[str, Any]]:
     return [{"role": "user", "content": message_content}]
 
 
+def _create_openai_response(client: Any, **kwargs: Any) -> Any:
+    """Retry once without temperature when a model explicitly rejects it."""
+    from openai import BadRequestError
+
+    try:
+        return client.responses.create(**kwargs)
+    except BadRequestError as error:
+        message = error.body.get("message") if isinstance(error.body, dict) else None
+        unsupported_parameter = error.code == "unsupported_parameter" or (
+            error.code is None
+            and isinstance(message, str)
+            and message.lower().startswith("unsupported parameter:")
+        )
+        if (
+            "temperature" not in kwargs
+            or error.param != "temperature"
+            or not unsupported_parameter
+        ):
+            raise
+
+        # Some models reject sampling parameters. Preserve all other inputs,
+        # and let any failure of the single fallback request propagate.
+        kwargs.pop("temperature")
+        return client.responses.create(**kwargs)
+
+
 def _call_openai_response_text(
     prompt: str,
     api_key: str,
@@ -500,7 +526,8 @@ def _call_openai_response_text(
         from openai import OpenAI
 
         client = OpenAI(base_url=base_url, api_key=api_key, timeout=300)
-        response = client.responses.create(
+        response = _create_openai_response(
+            client,
             model=model,
             input=[{"role": "user", "content": [{"type": "input_text", "text": prompt}]}],
             max_output_tokens=max_tokens,
@@ -525,7 +552,8 @@ def _call_openai_response_multimodal(
         from openai import OpenAI
 
         client = OpenAI(base_url=base_url, api_key=api_key, timeout=300)
-        response = client.responses.create(
+        response = _create_openai_response(
+            client,
             model=model,
             input=_build_openai_response_input(contents),
             max_output_tokens=max_tokens,
